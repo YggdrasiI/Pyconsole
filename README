@@ -1,0 +1,17 @@
+Description: Client/Server application to give Keykit a Python CLI frontend.
+Author: Olaf Schluz, Nov 2015
+
+Install instructions: 
+1) Place this folder (Pyconsole) into [Keykit root dir]/contrib/.
+2) Open scripts/environment.sh and adapt KEYROOT and KEYKIT to
+   your environment.
+
+
+Start: 
+1a) Call scripts/pyconsole.sh to load server app with keykit.
+1b) Start keykit and run pyconsole().
+
+2) Start keykit_console.py with Python. (Tested with 2.7.6)
+
+
+Licence: LGPL
