@@ -20,4 +20,4 @@ killall $KEYKIT
 
 # Swtich into directory with keyrc.k
 cd $KEYROOT
-$KEYROOT/bin/$KEYKIT contrib/Pyconsole/pyconsole.k -c "$Func" 
+$KEYROOT/bin/${LOWKEYKIT} contrib/Pyconsole/pyconsole.k -c "$Func" 

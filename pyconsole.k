@@ -2,10 +2,9 @@
 # See python/keykit.py for usage.
 
 #include contrib/Pyconsole/base_functions.k
-#include base_functions.k
 
 # Default server value
-PYCONSOLE_PORT = 3330
+PYCONSOLE_PORT = 33330
 PYCONSOLE_HOSTNAME = "0.0.0.0"
 
 # Note: Keykit internal variables for this data are:

@@ -15,3 +15,13 @@ Start:
 
 
 Licence: LGPL
+
+
+
+Tested with: 
+- Linux with Keykit 7.7d + Python 2.7.x.
+  Compiling patches for Keykit can be found on
+	https://github.com/YggdrasiI/GridMusic/tree/master/keykit_patches
+
+- Windows 7 with Git BASH Shell (https://git-scm.com/download/win)
+ + Keykit 7.7b + Python 2.7.x

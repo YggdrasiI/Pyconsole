@@ -19,7 +19,7 @@ from keykit_language import *
 ################################################
 
 # Default values for connection
-PY_CONSOLE_PORT = 3330
+PY_CONSOLE_PORT = 33330
 PY_CONSOLE_HOSTNAME = "0.0.0.0"
 
 MY_HOSTNAME = "0.0.0.0"  # or

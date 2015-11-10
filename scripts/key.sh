@@ -18,4 +18,4 @@ ${GRID_MUSIC_ROOT}/scripts/connect_alsa.sh ZynAddSubFX 2 &
 
 # Swtich into directory with keyrc.k
 cd $KEYROOT
-$KEYROOT/bin/$KEYKIT $* </dev/tty >/dev/tty 2>/dev/tty 
+$KEYROOT/bin/${KEYKIT} $* </dev/tty >/dev/tty 2>/dev/tty 

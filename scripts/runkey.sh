@@ -22,4 +22,4 @@ killall $KEYKIT
 
 # Start
 cd $KEYROOT
-$KEYROOT/bin/$KEYKIT keyrc.k -c "$ARGS" 
+$KEYROOT/bin/${KEYKIT} keyrc.k -c "$ARGS" 
