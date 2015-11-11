@@ -1,7 +1,12 @@
 """ Osc client for Keykit """
 import cmd
 import sys
-import readline  # For history, do not remove
+
+if sys.platform[0:3] == "win32":
+  import pyreadline as readline
+else:
+  import readline  # For history, do not remove
+
 from OSC import OSCClient, OSCMessage, OSCClientError
 from socket import gethostname
 from time import sleep
@@ -20,10 +25,12 @@ from keykit_language import *
 ################################################
 
 # Default values for connection
-PY_CONSOLE_PORT = 33330
-PY_CONSOLE_HOSTNAME = "0.0.0.0"
+PY_CONSOLE_PORT = 3330
+#PY_CONSOLE_HOSTNAME = "0.0.0.0" # Invalid on windows
+PY_CONSOLE_HOSTNAME = "127.0.0.1"
 
-MY_HOSTNAME = "0.0.0.0"  # or
+#MY_HOSTNAME = "0.0.0.0"  # Invalid on windows
+MY_HOSTNAME = "127.0.0.1"  # or
 # MY_HOSTNAME = gethostname()  # or
 # MY_HOSTNAME = "192.168.X.X"
 MY_HOSTNAME = "192.168.0.35"  # or
@@ -33,6 +40,7 @@ MY_PROMPT = ''
 
 # Makes ANSI escape character sequences (for producing colored terminal
 # text and cursor positioning) work under MS Windows.
+# Note that colouring does not work in Git bash (Win), but Cmd.exe.
 USE_COLORAMA = True
 
 ################################################
@@ -53,12 +61,12 @@ class KeykitShell(cmd.Cmd):
     intro = '''
     Welcome to the Keykit shell. Type help or ? to list commands.
     Connect to local keykit server with 'connect port'.
+    Exit shell with 'bye'.
     '''
 
     remote_server_adr = (PY_CONSOLE_HOSTNAME, PY_CONSOLE_PORT)
     local_server_adr = (MY_HOSTNAME, PY_CONSOLE_PORT + 1)
 
-    # prompt = MY_PROMPT
     prompt = ''
 
     def __init__(self, *args, **kwargs):
@@ -119,21 +127,19 @@ class KeykitShell(cmd.Cmd):
 
     def do_verbose(self, arg):
         '''Set verbose level variable of pyconsole.k:    verbose [0|1]'''
+        if arg == "":
+          arg = "1"
         try:
             self.client.send(
                 OSCMessage("/keykit/pyconsole/verbose", [int(arg)]))
         except OSCClientError:
             warn("Sending failed")
 
-    # Dummy method for entry in help list
-    def do_KEYKIT_CMD(self, arg):
-        '''Any other cmd will be send to Keykit.        [cmd]'''
-
     def do_bye(self, arg):
         '''Close keykit shell window and exit:          bye
         It mutes the output of keykit, too.'''
         warn('Quitting keykit shell.')
-        # self.send("stopp()")
+        # self.send("stop()")
         self.send("alloff()")
         self.close()
         return True
@@ -151,7 +157,6 @@ class KeykitShell(cmd.Cmd):
 
     def do_loop(self, arg):
         '''Start test loop to check asynchron beheaviour.'''
-        print(self.intro)
 
         # It is important to use different loop variable names for each call!
         i = chr(65+self.loopVarIdx)
@@ -190,7 +195,7 @@ class KeykitShell(cmd.Cmd):
             # Apend commands with irregular python function names
             print("Further commands")
             print("========================================")
-            print("! !! !log ![num]")
+            print("[keykit cmd] ! !! !log ![num]")
         elif args == "!":
             print("List history of Keykit commands.")
         elif args == "!!":

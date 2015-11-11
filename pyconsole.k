@@ -4,8 +4,9 @@
 #include contrib/Pyconsole/base_functions.k
 
 # Default server value
-PYCONSOLE_PORT = 33330
-PYCONSOLE_HOSTNAME = "0.0.0.0"
+PYCONSOLE_PORT = 3330
+#PYCONSOLE_HOSTNAME = "0.0.0.0" # Bad on windows
+PYCONSOLE_HOSTNAME = "127.0.0.1"
 
 # Note: Keykit internal variables for this data are:
 #  KeyKitHost, Hostname, KeyKitPort, KeyKitRemotePort
@@ -22,8 +23,13 @@ Pyconsole_verbose = 1
 # Default filename for log
 Pyconsole_logfile = "pyconsole.log"
 
+# Enable workaround, see pyconsole_win.k
+Pyconsole_windows_fix = 0
+
+
 # Call this function to use pyconsole
 function pyconsole(port, hostname){
+
 	#include contrib/Pyconsole/base_functions.k
 	if( nargs() < 2 ) hostname = PYCONSOLE_HOSTNAME
 	if( nargs() < 1 ) port = PYCONSOLE_PORT 
@@ -33,6 +39,10 @@ function pyconsole(port, hostname){
 	if( Graphics == 0 ){
 		Local_print("Press Ctrl+C to exit.")
 		wait(pycon.get_osc_tid())
+		while (1) {
+			sleeptill(Now+2b)
+			break
+		}
 		deleteobject(pycon);
 		Local_printf("Quit pyconsole...\n")
 	}else{
@@ -135,6 +145,15 @@ class osc_console {
 		$.Modir = 0
 
 		Local_printf = printf
+		if( Pyconsole_windows_fix == 1 ){
+			# without foucsed object in the keykit window,
+			# key.exe uses a blocking popup for printing.
+			# Thus, we disable local printing in this
+			# case completely.
+			# Note that pyconsole_win.k already changed
+			# Graphics to 0 here...
+			Local_printf = nullfunc
+		}
 		#Local_consoleprintf = consoleprintf
 
 		printf = osc_printf
@@ -148,21 +167,13 @@ class osc_console {
 		#Intrfunc = no_interrupt
 		#consoleprintf = my_consoleprintf # ness?!
 
-		#		if( Graphics > 0 ){
-		#			Local_focus = Root.focus()
-		#			#Local_printf = Local_focus.printf
-		#			Root.focus($)
-		#		}
-
-		# s = string($.osclistenport)+"@"+Hostname
-		# s = string($.osclistenport)+"@127.0.0.1"
 		s = string($.osclistenport)+"@"+$.oschostname
 		$.oscf = open(s,"rA","osc_listen")
 		if ( $.oscf < 0 ) {
-			Local_print("Unable to listen on ",Osclisten," !?")
+			Local_print("Unable to listen on ", s, " !?")
 			$.osctid = -1
 		} else {
-			Local_print("Listening for OSC on ",s," ...")
+			Local_print("Listening for OSC on ", s, " ...")
 			# start loop for mmtt osc messages
 			$.osctid = task $.osctask()
 		}
@@ -181,7 +192,9 @@ class osc_console {
 		$.osctid = -1
 
 		# Restore previous handler
-		printf = Local_printf
+		if( Pyconsole_windows_fix == 0 ){
+			printf = Local_printf
+		}
 		#consoleprintf = Local_consoleprintf
 		if( Pyconsole == $){
 			Pyconsole = -1

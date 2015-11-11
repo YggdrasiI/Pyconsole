@@ -4,7 +4,7 @@
 ####################################
 
 # Input handling
-Func="pyconsole(3330)"
+Func="pyconsole()"
 test -z "$1" || Func="pyconsole($1)" 
 
 # Normalize path. GRID_MUSIC_ROOT will be used to find Pyconsole/tests in Keykit
