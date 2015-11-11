@@ -1,11 +1,12 @@
 """ Osc client for Keykit """
 import cmd
 import sys
+import re
 
 if sys.platform[0:3] == "win32":
-  import pyreadline as readline
+    import pyreadline as readline
 else:
-  import readline  # For history, do not remove
+    import readline  # For history, do not remove
 
 from OSC import OSCClient, OSCMessage, OSCClientError
 from socket import gethostname
@@ -26,14 +27,13 @@ from keykit_language import *
 
 # Default values for connection
 PY_CONSOLE_PORT = 3330
-#PY_CONSOLE_HOSTNAME = "0.0.0.0" # Invalid on windows
+# PY_CONSOLE_HOSTNAME = "0.0.0.0" # Invalid on windows
 PY_CONSOLE_HOSTNAME = "127.0.0.1"
 
-#MY_HOSTNAME = "0.0.0.0"  # Invalid on windows
+# MY_HOSTNAME = "0.0.0.0"  # Invalid on windows
 MY_HOSTNAME = "127.0.0.1"  # or
 # MY_HOSTNAME = gethostname()  # or
 # MY_HOSTNAME = "192.168.X.X"
-MY_HOSTNAME = "192.168.0.35"  # or
 
 MY_PROMPT = ''
 # MY_PROMPT = 'key> '
@@ -58,11 +58,11 @@ else:
 
 
 class KeykitShell(cmd.Cmd):
-    intro = '''
+    intro = """
     Welcome to the Keykit shell. Type help or ? to list commands.
     Connect to local keykit server with 'connect port'.
     Exit shell with 'bye'.
-    '''
+    """
 
     remote_server_adr = (PY_CONSOLE_HOSTNAME, PY_CONSOLE_PORT)
     local_server_adr = (MY_HOSTNAME, PY_CONSOLE_PORT + 1)
@@ -107,11 +107,11 @@ class KeykitShell(cmd.Cmd):
 
     # ----- internal shell commands -----
     def do_connect(self, arg):
-        '''Connect to OSC-Server:                       connect [PORT] [HOSTNAME]
+        """Connect to OSC-Server:                       connect [PORT] [HOSTNAME]
+
         Default PORT: %i
         Default HOSTNAME: %s
-        '''
-        print("Typ: ", type(arg), arg)
+        """
         words = arg.split(' ')
         if len(words) > 1:
             self.remote_server_adr = (str(words[1]), int(words[0]))
@@ -126,9 +126,9 @@ class KeykitShell(cmd.Cmd):
     do_connect.__doc__ %= (remote_server_adr[1], remote_server_adr[0])
 
     def do_verbose(self, arg):
-        '''Set verbose level variable of pyconsole.k:    verbose [0|1]'''
+        """Set verbose level variable of pyconsole.k:    verbose [0|1]"""
         if arg == "":
-          arg = "1"
+            arg = "1"
         try:
             self.client.send(
                 OSCMessage("/keykit/pyconsole/verbose", [int(arg)]))
@@ -136,27 +136,30 @@ class KeykitShell(cmd.Cmd):
             warn("Sending failed")
 
     def do_bye(self, arg):
-        '''Close keykit shell window and exit:          bye
-        It mutes the output of keykit, too.'''
+        """Close keykit shell window and exit:          bye
+
+        It mutes the output of keykit, too.
+        """
         warn('Quitting keykit shell.')
         # self.send("stop()")
         self.send("alloff()")
         self.close()
         return True
-    """
+
+    '''
     def do_exit(self, arg):
-        'Close keykit shell window and exit:  exit'
+        """Close keykit shell window and exit:  exit"""
         return self.do_bye(arg)
 
     def do_quit(self, arg):
-        'Close keykit shell window and exit:  quit'
+        """Close keykit shell window and exit:  quit"""
         return self.do_bye(arg)
-    """
+    '''
 
     loopVarIdx = 0
 
     def do_loop(self, arg):
-        '''Start test loop to check asynchron beheaviour.'''
+        """Start test loop to check asynchron beheaviour."""
 
         # It is important to use different loop variable names for each call!
         i = chr(65+self.loopVarIdx)
@@ -175,27 +178,28 @@ class KeykitShell(cmd.Cmd):
         self.default(s)
 
     def do_test(self, arg):
-        '''Send test commands to keykit backend.'''
+        """Send test commands to keykit backend."""
         # self.do_loop("")
         self.default("print(\"Send irregular line\")")
         self.default("i = 0/0")
 
-    # ----- Input for osc message -----
-
     def default(self, line):
+        """Send input as keykit command (OSC message)"""
         self.send(line)
         # Restore prompt
         sys.stdout.write("%s" % (MY_PROMPT))
-        # return False
 
     def do_help(self, args):
-        '''%s'''
+        """%s"""
         if args == "":
             cmd.Cmd.do_help(self, args)
             # Apend commands with irregular python function names
+            print("Keykit help")
+            print("===========")
+            print(self.do_khelp.__doc__)
             print("Further commands")
-            print("========================================")
-            print("[keykit cmd] ! !! !log ![num]")
+            print("================")
+            print("[keykit cmd] ! !! !log ![num]\n")
         elif args == "!":
             print("List history of Keykit commands.")
         elif args == "!!":
@@ -212,6 +216,53 @@ class KeykitShell(cmd.Cmd):
 
     do_help.__doc__ %= (cmd.Cmd.do_help.__doc__)
 
+    def do_khelp(self, args):
+        """khelp [regex pattern] lists all matching library functions.
+
+        If a more detailed description exists the entry will be
+        marked with '*'.
+        Pattern with an unique results shows the description.
+        """
+
+        kname = args.strip()
+        if kname == "":
+            kname = ".*"
+        kname = "^"+kname+"$"
+        bRegexOk = True
+        try:
+            re.compile(kname)
+        except:
+            bRegexOk = False
+            warn("Can not compile regular expression.")
+            return
+
+        lElems = []
+        if bRegexOk:
+            lElems.extend([i for i in KEYKIT_LIB_FUNCTIONS
+                           if re.search(kname, i["name"], re.IGNORECASE)
+                           is not None])
+            lElems.extend([i for i in KEYKIT_LIB_CLASSES
+                           if re.search(kname, i["name"], re.IGNORECASE)
+                           is not None])
+            lElems.extend([i for i in KEYKIT_LIB_OTHER
+                           if re.search(kname, i["name"], re.IGNORECASE)
+                           is not None])
+
+        l = ["%s%s" % (el["name"],
+                       "*" if el["desc"] != "" else "")
+             for el in lElems]
+        if(len(l) == 0):
+            warn("No Keykit function/class/etc found for %s" % (kname,))
+            return
+        elif(len(l) > 20):
+            print(keykit_library_abc(l))
+        elif(len(l) > 1):
+            print(" ".join(l))
+            return
+        else:
+            print(keykit_library_help(lElems[0]))
+            return
+
     def close(self):
         if(self.client is not None):
             self.client.close()
@@ -225,17 +276,15 @@ class KeykitShell(cmd.Cmd):
         except OSCClientError:
             warn("Sending of '%s' failed" % (s,))
 
-    # methodes for completions:
-    def xcomplete(self, text, line, begidx, endidx):
-        print("Hey")
-        return [i for i in _AVAILABLE_KEYKIT_FUNCTIONS if i.startswith(text)]
-
-
 # -----------------------------------------
-# Server for return of Keykits output.
-# (Adaption of Osc server example.)
+
 
 class Server():
+
+    """Listener to collect results of Keykit server.
+
+    (Adaption of OSC package example.)
+    """
 
     def __init__(self, server_adr):
         self.server = OSCServer(server_adr)
@@ -318,7 +367,8 @@ def warn(s):
 # Setup tab completion
 
 
-def complete(text, state):
+def complete_simple(text, state):
+    """Re-uses the lists the vim syntax file."""
     l = [i for i in KEYKIT_FUNCTIONS if i.startswith(text)]
     l.extend([i for i in KEYKIT_STATEMENTS if i.startswith(text)])
     l.extend([i for i in PYCONSOLE_CONSTANTS if i.startswith(text)])
@@ -326,12 +376,86 @@ def complete(text, state):
         return l[state]
     return None
 
-readline.parse_and_bind('tab: complete')
-readline.set_completer(complete)
 
+def complete_advanced(text, state):
+    """Uses the output of the parser keykit_gen_library.py."""
+    l = [i["name"] for i in KEYKIT_LIB_FUNCTIONS
+         if i["name"].startswith(text)]
+    l.extend([i["name"] for i in KEYKIT_LIB_CLASSES
+              if i["name"].startswith(text)])
+    l.extend([i["name"] for i in KEYKIT_LIB_OTHER
+              if i["name"].startswith(text)])
+    if(state < len(l)):
+        return l[state]
+    return None
+
+try:
+    lib_dict
+except NameError:
+    lib_dict = dict()
+
+readline.parse_and_bind('tab: complete')
+readline.set_completer(complete_advanced)
+
+KEYKIT_LIB_FUNCTIONS = []
+KEYKIT_LIB_CLASSES = []
+KEYKIT_LIB_OTHER = []
+
+
+def load_keykit_library():
+    """Loads the structure generated by keykit_gen_library.ph"""
+    import keykit_library
+    # create ist of function names
+    for folder in keykit_library.lib_dict.values():
+        KEYKIT_LIB_FUNCTIONS.extend(folder)
+
+
+def keykit_library_help(el):
+    """Parses one element of above structure."""
+    source = ""
+    out = "\n%11s: %%s%%s%%s%%*s\n%11s: %%s\n%11s: %%s\n" % (
+        "Name", "Usage", "Description"
+    )
+    if el["filename"] is not None:
+        if el["fileline"] > -1:
+            source = "(%s:%i)" % (el["filename"], int(el["fileline"]))
+        else:
+            source = "(%s)" % (el["filename"],)
+
+    desc = el["desc"] if el["desc"] is not "" else "-"
+    return out % (ColorOut, el["name"], ColorReset,
+                  (60-len(el["name"])),
+                  source,
+                  el["usage"],
+                  desc)
+
+
+def keykit_library_abc(elems):
+    """Split elments into separate chunks for first character"""
+    char = elems[0][0]
+    n = 0
+    s = char.upper()+"\n"
+    for el in elems:
+        if el[0] == char:
+            n += 1
+            if n > 4:
+                s += "\n"
+                n = 0
+
+            s += "%15s%s " % (el, "" if el[-1] == "*" else " ")
+        else:
+            char = el[0]
+            n = 0
+            s += "\n%s\n" % (char.upper(),)
+            s += "%15s " % (el,)
+    return s
 
 if __name__ == '__main__':
     shell = KeykitShell()
+
+    # Load help system in background thread
+    doc_thread = Thread(target=load_keykit_library)
+    doc_thread.start()
     try:
         shell.cmdloop()
     except KeyboardInterrupt:
