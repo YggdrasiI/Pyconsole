@@ -1,3 +1,4 @@
+""" Osc client for Keykit """
 import cmd
 import sys
 import readline  # For history, do not remove
@@ -9,7 +10,7 @@ from time import sleep
 from OSC import OSCServer
 from threading import Thread
 
-# Constans
+# Constants
 from keykit_language import *
 
 ################################################
@@ -25,6 +26,7 @@ PY_CONSOLE_HOSTNAME = "0.0.0.0"
 MY_HOSTNAME = "0.0.0.0"  # or
 # MY_HOSTNAME = gethostname()  # or
 # MY_HOSTNAME = "192.168.X.X"
+MY_HOSTNAME = "192.168.0.35"  # or
 
 MY_PROMPT = ''
 # MY_PROMPT = 'key> '

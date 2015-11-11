@@ -1,8 +1,11 @@
 Unsolved problems:
 
+Keykit side:
 2. Pressing 'Return' in the CLI window of keykit leads to 100% cpu usage
    and spamming the console. Keykit looping handlewaitfor(...) in task.c
 
+
+Python side:
 5. The python interface should get the error messages, too, but this
    does not work in CLI mode. I didn't find a way to fetch the 
 	 content of execerror(...), see main.c, calls.
