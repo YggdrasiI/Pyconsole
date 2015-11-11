@@ -9,14 +9,16 @@ SET XLOWKEY=lowkey.exe
 
 SET THIS_DIR=%cd%
 
-rem cd /d %XKEYROOT%
-rem %XKEYROOT%\bin\%XLOWKEY% contrib/Pyconsole/pyconsole.k -c "pyconsole()" 
-
-
 cd /d %XKEYROOT%
+rem Desired solution, but does not work:
+rem bin\%XKEYKIT% ../contrib/Pyconsole/pyconsole.k  -c "pyconsole()"
+rem Workaround:
 bin\%XKEYKIT% contrib/Pyconsole/pyconsole_win.k 
-rem bin\%XKEYKIT% ../contrib/Pyconsole/pyconsole.k  -c "while(1){sleeptill(Now+1b)}"
 
 cd /d %THIS_DIR%
-rem Batch variable stored outsid of script... Lol
-rem SET KEYPATH=
+rem Unset variables. Otherwise they leave the scope of the script...
+rem SET XKEYPATH=
+SET XKEYROOT=
+SET XKEYKIT=
+SET XLOWKEY=
+SET THIS_DIR=

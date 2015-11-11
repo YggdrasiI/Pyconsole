@@ -28,8 +28,8 @@ PY_CONSOLE_PORT = 3330
 #PY_CONSOLE_HOSTNAME = "0.0.0.0" # Invalid on windows
 PY_CONSOLE_HOSTNAME = "127.0.0.1"
 
-MY_HOSTNAME = "0.0.0.0"  # or
-#MY_HOSTNAME = "127.0.0.1"  # or
+#MY_HOSTNAME = "0.0.0.0"  # Invalid on windows
+MY_HOSTNAME = "127.0.0.1"  # or
 # MY_HOSTNAME = gethostname()  # or
 # MY_HOSTNAME = "192.168.X.X"
 
