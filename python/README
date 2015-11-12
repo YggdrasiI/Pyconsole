@@ -1,0 +1,16 @@
+== Frontend for pyconsole.k script. ==
+
+Features:
+- History and common terminal shortcuts (via readline)
+- Tab completion with most Keykit functions.
+- Help for Keykit functions with #name, #usage, or #desc comments.
+
+Requiremets:
+- pyreadline ( Only on Windows required, https://pypi.python.org/pypi/pyreadline )
+- pyosc ( Package included, source https://github.com/ptone/pyosc.git )
+- colorama ( Package included, source https://pypi.python.org/pypi/colorama )
+
+
+Usage:
+- Start pyconsole.k in Keykit (see scripts/console.sh) and run this script, i.e.
+  > python keykit_console.py
