@@ -38,11 +38,11 @@ class DocElement:
     def printLibCode(self, prefix="\t"):
         s = prefix+"{\n"
         s += prefix+"\t\"type\": \""+self.elType+"\",\n"
-        s += prefix+"\t\"name\": \""+self.name+"\",\n"
-        s += prefix+"\t\"usage\": \""+self.usage+"\",\n"
+        s += prefix+"\t\"name\": \""+self.name.strip()+"\",\n"
+        s += prefix+"\t\"usage\": \"\"\""+self.usage.strip()+"\"\"\",\n"
         s += prefix+"\t\"filename\": \""+str(self.filename)+"\",\n"
         s += prefix+"\t\"fileline\": "+str(self.fileline)+",\n"
-        s += prefix+"\t\"desc\": \"\"\""+self.desc+"\"\"\",\n"
+        s += prefix+"\t\"desc\": \"\"\""+self.desc.strip()+"\"\"\",\n"
         s += prefix+"},\n"
         return s
 
@@ -53,15 +53,15 @@ class DocElement:
         if self.filename is not None:
             if self.fileline > -1:
                 source = "(%s:%i)" % (self.filename,
-                                            int(self.fileline))
+                                      int(self.fileline))
             else:
                 source = "(%s)" % (self.filename,)
 
         return "Name: %s%*s\nUsage: %s\nDescription: %s" % (self.name,
-                                                           (60-len(self.name)),
-                                                           source,
-                                                           self.usage,
-                                                           self.desc)
+                                                            (60-len(self.name)),
+                                                            source,
+                                                            self.usage,
+                                                            self.desc)
 
 
 def joinLinesByBraces(lines):
@@ -185,7 +185,7 @@ def analyse_k_file(path):
 def getFunctionName(codeline):
     l = codeline.strip()
     l = l[l.find("function")+8:]
-    l = l.replace("{",")") # for fname{}
+    l = l.replace("{", ")")  # for fname{}
     l = l[:l.find(")")]
     l = l.strip()
     token = re.split("[(,)]", l)
@@ -220,7 +220,7 @@ if __name__ == '__main__':
         docs.extend(analyse_k_file(k).values())
 
     # Sorting by name
-    docs.sort( key=lambda el: el.name )
+    docs.sort(key=lambda el: el.name.lower())
 
     if bWrite:
         out_file = open(out_filename, "w")

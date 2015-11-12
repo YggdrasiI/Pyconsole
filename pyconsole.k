@@ -385,6 +385,12 @@ class osc_console {
 	method send(s, path){
 		if( nargs() < 2 ) path="/keykit/pyconsole/out"
 
+    if( sizeof(s) > 1024 ){
+        # Split text to omit oversized tcp packages?!
+       substr(XXX) 
+
+    }
+
 		t = string($.oscsendtarget["port"])+"@"+string($.oscsendtarget["server"])
 		f = open(t,"wb","osc_send")
 		a = [0=path,1=s]
