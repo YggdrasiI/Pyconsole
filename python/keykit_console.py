@@ -202,11 +202,18 @@ class KeykitShell(cmd.Cmd):
             print(self.do_khelp.__doc__)
             print("Further commands")
             print("================")
-            print("[keykit cmd] ! !! !log ![num]\n")
+            print("[keykit cmd] ! !! !log ![num] [phrase]??\n")
         elif args == "!":
             print("List history of Keykit commands.")
         elif args == "!!":
             print("Repeat last Keykit command.")
+        elif args == "??" or args == "[phrase]??":
+            print("Syntax for phrase filtering:\n"
+                  " [phrase] { condition-with-?? }"
+                  " ?? will replaced with each note in the original phrase.\n"
+                  " Example:\n"
+                  " 'c,d,e,f,g' { ??.pitch > 'e' } would be equal to 'ft288,g'\n"
+                  "")
         elif args == "!log":
             print(
                 "Write history of commands into logfile.\n" +
