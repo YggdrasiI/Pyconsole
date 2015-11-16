@@ -212,7 +212,7 @@ class KeykitShell(cmd.Cmd):
                   " [phrase] { condition-with-?? }"
                   " ?? will replaced with each note in the original phrase.\n"
                   " Example:\n"
-                  " 'c,d,e,f,g' { ??.pitch > 'e' } would be equal to 'ft288,g'\n"
+                  " 'c,d,e,f,g' {??.pitch > 'e'} would be equal to 'ft288,g'\n"
                   "")
         elif args == "!log":
             print(
@@ -312,6 +312,7 @@ class Server():
         # Handler
         self.server.addMsgHandler("/quit", self.quit_callback)
         self.server.addMsgHandler("/keykit/pyconsole/out", self.print_callback)
+        self.server.addMsgHandler("/keykit/pyconsole/err", self.err_callback)
         self.server.addMsgHandler(
             "/keykit/pyconsole/start",
             self.print_callback)
@@ -352,7 +353,7 @@ class Server():
     def quit_callback(self, path, tags, args, source):
         self.run = False
 
-    def print_callback(self, path, tags, args, source):
+    def print_callback(self, path, tags, args, source, textColor=ColorOut):
         current_input = readline.get_line_buffer()
 
         # Add Tab at every input line
@@ -363,12 +364,16 @@ class Server():
         sys.stdout.write("\r\033[K")
         sys.stdout.write(
             "\t%s%s%s\n%s%s" %
-            (ColorOut,
+            (textColor,
              out,
              ColorReset,
              MY_PROMPT,
              current_input))
         sys.stdout.flush()
+
+    def err_callback(self, path, tags, args, source):
+        """ Same as print_callback but mark output as error. """
+        self.print_callback(path, tags, args, source, ColorWarn)
 
 
 def warn(s):

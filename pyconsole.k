@@ -110,15 +110,30 @@ function osc_printf(...) {
 }
 
 
-# Overwrite this to propagete output in windowed mode, too.
-# Edit: No, does not work because consoleprintf 
-# is not called in windowed mode.
-function my_consoleprintf(...) {
-	Local_printf("Hey pyconsole!\n")
-	osc_printf(...)
+# Falg to omit recursion in error func
+Pyconsole_sending_err = 0
+
+# Error handler. (Note that this will be
+# handled taskwise.
+function onerrorfunc(s,obj){
+	if( nargs() < 2 ){
+		return()
+	}
+	# Sending failed?! Print out local
+	if( Pyconsole_sending_err > 0  || Pyconsole == -1){
+		Pyconsole_sending_err = 0
+		Local_printf(s)
+		return(-1)
+	}
+
+	Pyconsole_sending_err = 1
+	#obj.send(s, "/keykit/pyconsole/err")
+	Pyconsole.send(s, "/keykit/pyconsole/err")
+	Pyconsole_sending_err = 0
+	return(0)
 }
 
-# Task loop for my Consout
+# Task loop for my Consout, unused
 function my_consoutloop() {
 	while ( 1 ) {
 		c = get(Consoutfifo)
@@ -165,7 +180,6 @@ class osc_console {
 		Errorfunc = ignore_non_fatal_errors
 
 		#Intrfunc = no_interrupt
-		#consoleprintf = my_consoleprintf # ness?!
 
 		s = string($.osclistenport)+"@"+$.oschostname
 		$.oscf = open(s,"rA","osc_listen")
@@ -199,6 +213,7 @@ class osc_console {
 		if( Pyconsole == $){
 			Pyconsole = -1
 		}
+		#Local_printf("Delete called\n")
 	}
 
 	method handle_message(d){
@@ -262,6 +277,9 @@ class osc_console {
 		if ( cmd < 0 ) {
 			return()
 		}
+
+		# Map error message handling (FOR THIS TASK!)
+		onerror(onerrorfunc, $)
 
 		# $.History processing (revu et augmenté...)
 		if ( substr(cmd,1,1)=="!") {
@@ -385,11 +403,12 @@ class osc_console {
 	method send(s, path){
 		if( nargs() < 2 ) path="/keykit/pyconsole/out"
 
-    if( sizeof(s) > 1024 ){
-        # Split text to omit oversized tcp packages?!
-       substr(XXX) 
-
-    }
+		while( sizeof(s) > 1024 ){
+			# Split text to omit oversized tcp packages?!
+			sBegin = substr(s, 1, 1024)
+			s = substr(s, 1+1024, sizeof(s)-1024)
+			$.send(sBegin, path)
+		}
 
 		t = string($.oscsendtarget["port"])+"@"+string($.oscsendtarget["server"])
 		f = open(t,"wb","osc_send")
