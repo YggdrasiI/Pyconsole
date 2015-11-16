@@ -227,11 +227,12 @@ class KeykitShell(cmd.Cmd):
     do_help.__doc__ %= (cmd.Cmd.do_help.__doc__)
 
     def do_khelp(self, args):
-        """khelp [regex pattern] lists all matching library functions.
+        """khelp [regex pattern] lists all matching library functions/important variables.
 
         If a more detailed description exists the entry will be
         marked with '*'.
-        Pattern with an unique results shows the description.
+        Patterns with an unique result show the description.
+        Note: The lookup table is still incomplete.
         """
 
         kname = args.strip()
