@@ -20,9 +20,8 @@ from threading import Thread
 from keykit_language import *
 
 ################################################
-# Attention, the is no passwort protected, etc.
+# Attention, the console is not password protected
 # Non-local IPs open your whole system!
-# Be careful and do not shoot you in the foot
 ################################################
 
 # Default values for connection
@@ -328,7 +327,7 @@ class Server():
         while not self.timed_out and self.run:
             self.server.handle_request()
             # Line reached after each socket read
-            sleep(.1)
+            sleep(.05)
 
     def start(self):
         # print("Wait on client input...")

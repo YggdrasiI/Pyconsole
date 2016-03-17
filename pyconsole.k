@@ -3,6 +3,9 @@
 
 #include contrib/Pyconsole/base_functions.k
 
+# Load stuff from GridMusic
+#include contrib/GridMusic/start.k
+
 # Default server value
 PYCONSOLE_PORT = 3330
 #PYCONSOLE_HOSTNAME = "0.0.0.0" # Bad on windows
@@ -17,10 +20,10 @@ Pyconsole = -1
 
 # Flag to enable a few debugging messages. 
 # Could be set by 
-# /keykit/pyconsole/verbose TUIO message, too.
-Pyconsole_verbose = 1
+# /keykit/pyconsole/verbose OSC message, too.
+Pyconsole_verbose = 0
 
-# Default filename for log
+# Filename for !log command.
 Pyconsole_logfile = "pyconsole.log"
 
 # Enable workaround, see pyconsole_win.k
@@ -110,7 +113,7 @@ function osc_printf(...) {
 }
 
 
-# Falg to omit recursion in error func
+# Flag to omit recursion in error func.
 Pyconsole_sending_err = 0
 
 # Error handler. (Note that this will be
@@ -166,7 +169,8 @@ class osc_console {
 			# Thus, we disable local printing in this
 			# case completely.
 			# Note that pyconsole_win.k already changed
-			# Graphics to 0 here...
+			# Graphics to 0 here... This variable can not
+			# be used as indicator.
 			Local_printf = nullfunc
 		}
 		#Local_consoleprintf = consoleprintf
@@ -265,7 +269,7 @@ class osc_console {
 		}
 	}
 
-	# Interpreter copied from loops.k::interploop
+	# Interpreter copied from loops.k::interploop.
 	method interpreter(cmd) {
 		if ( cmd == Eof ){
 			exit(0)
