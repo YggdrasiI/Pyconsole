@@ -2,6 +2,7 @@
 import cmd
 import sys
 import re
+import os.path
 
 if sys.platform[0:3] == "win32":
     import pyreadline as readline
@@ -226,12 +227,12 @@ class KeykitShell(cmd.Cmd):
     do_help.__doc__ %= (cmd.Cmd.do_help.__doc__)
 
     def do_khelp(self, args):
-        """khelp [regex pattern] lists all matching library functions/important variables.
+        """khelp [regex pattern] lists matching library functions/important variables.
 
         If a more detailed description exists the entry will be
         marked with '*'.
         Patterns with an unique result show the description.
-        Note: The lookup table is still incomplete.
+        Note: The lookup table is big, but incomplete.
         """
 
         kname = args.strip()
@@ -240,7 +241,7 @@ class KeykitShell(cmd.Cmd):
         kname = "^"+kname+"$"
         bRegexOk = True
         try:
-            re.compile(kname)
+            re_name = re.compile(kname, re.IGNORECASE)
         except:
             bRegexOk = False
             warn("Can not compile regular expression.")
@@ -249,13 +250,13 @@ class KeykitShell(cmd.Cmd):
         lElems = []
         if bRegexOk:
             lElems.extend([i for i in KEYKIT_LIB_FUNCTIONS
-                           if re.search(kname, i["name"], re.IGNORECASE)
+                           if re.search(re_name, i["name"])
                            is not None])
             lElems.extend([i for i in KEYKIT_LIB_CLASSES
-                           if re.search(kname, i["name"], re.IGNORECASE)
+                           if re.search(re_name, i["name"])
                            is not None])
             lElems.extend([i for i in KEYKIT_LIB_OTHER
-                           if re.search(kname, i["name"], re.IGNORECASE)
+                           if re.search(re_name, i["name"])
                            is not None])
 
         l = ["%s%s" % (el["name"],
@@ -285,6 +286,40 @@ class KeykitShell(cmd.Cmd):
             self.client.send(OSCMessage("/keykit/pyconsole/in", [s]))
         except OSCClientError:
             warn("Sending of '%s' failed" % (s,))
+
+    def update_lsdir(self, text, timeout):
+        #import pdb; pdb.set_trace()
+        # sleep(timeout)
+        dirname = os.path.dirname(text)
+        basename = os.path.basename(text)
+        if len(dirname) == 0:
+            dirname = "."
+        self.server.keykit_lsdir = None
+        try:
+            self.client.send(OSCMessage("/keykit/pyconsole/lsdir", [dirname]))
+        except OSCClientError:
+            warn("Sending of '%s' failed" % (s,))
+
+        while timeout > 0 and self.server.keykit_lsdir is None:
+            timeout -= 0.1
+            sleep(0.1)
+        if self.server.keykit_lsdir is not None:
+            # Default readline beheaviour
+            # return [i[0] for i in self.server.keykit_lsdir
+            #        if i[0].startswith(basename)]
+
+            # Add readline workarounds
+            # Include Path separator for folders
+            ret = ["%s%s" % (i[0], os.path.sep if i[1] else "")
+                    for i in self.server.keykit_lsdir
+                    if i[0].startswith(basename)]
+            # Omit adding of closing quotes, see
+            # https://github.com/ipython/ipython/issues/1172
+            if len(ret) == 1:
+                ret.append(ret[0]+" ")
+            return ret
+
+        return []
 
 # -----------------------------------------
 
@@ -316,6 +351,7 @@ class Server():
         self.server.addMsgHandler(
             "/keykit/pyconsole/start",
             self.print_callback)
+        self.server.addMsgHandler("/keykit/pyconsole/lsdir", self.dir_callback)
 
     def handle_timeout(self, server=None):
         self.timed_out = True
@@ -375,42 +411,117 @@ class Server():
         """ Same as print_callback but mark output as error. """
         self.print_callback(path, tags, args, source, ColorWarn)
 
+    def dir_callback(self, path, tags, args, source):
+        """ Store current working dir for tab completion.
+            This is mainly releated to chdir() and lsdir().
+        """
+        lsdir_string_part = args[0]
+        if lsdir_string_part[0] == "^":
+            self.keykit_lsdir_string = lsdir_string_part
+        else:
+            self.keykit_lsdir_string += lsdir_string_part
+
+        if self.keykit_lsdir_string[-1] == "$":
+            try:
+                lsdir = []
+                # Convert string into list of files. Second argument flags
+                # directories.
+                # Example string:  ^["foldername"=1,"filename"=0]$
+                re_entries = '".+?"=[01][,\]]'
+                entries = re.finditer(re_entries, self.keykit_lsdir_string)
+                for entry in entries:
+                    sname = entry.group()[1:-4]
+                    bFolder = entry.group()[-2] == "1"
+                    lsdir.append((sname, bFolder))
+
+                self.keykit_lsdir = lsdir
+            except:
+                sys.stderr.write("(dir_callback) Unable to fetch folder content.")
+                self.keykit_lsdir = []
+
+
+# Setup tab completion
+class Completer:
+
+    def __init__(self, completer=None, shell=None, bBind=True):
+        self.prefix = None
+        self.shell = shell
+        self.completer = \
+            self.complete_advanced if completer is None else completer
+        if bBind:
+            readline.parse_and_bind('tab: complete')
+            readline.set_completer(self.complete)
+
+    def complete(self, prefix, index):
+        if prefix != self.prefix:
+            # New prefix. Find all words that start with this prefix.
+            self.matching_words = self.completer(prefix, index)
+            self.prefix = prefix
+        try:
+            return self.matching_words[index]
+        except IndexError:
+            return None
+
+    def complete_simple(self, text, state):
+        """Re-uses the lists the vim syntax file."""
+        l = [i for i in KEYKIT_FUNCTIONS if i.startswith(text)]
+        l.extend([i for i in KEYKIT_STATEMENTS if i.startswith(text)])
+        l.extend([i for i in PYCONSOLE_CONSTANTS if i.startswith(text)])
+        return l
+        # if(state < len(l)):
+        #    return l[state]
+        # return None
+
+    def complete_advanced(self, text, state):
+        """Uses the output of the parser keykit_gen_library.py."""
+        l = []
+
+        # Completion of paths
+        l.extend(self.complete_path(text, state))
+
+        if len(l) == 0:
+            l.extend([i["name"] for i in KEYKIT_LIB_FUNCTIONS
+                      if i["name"].startswith(text)])
+            l.extend([i["name"] for i in KEYKIT_LIB_CLASSES
+                      if i["name"].startswith(text)])
+            l.extend([i["name"] for i in KEYKIT_LIB_OTHER
+                      if i["name"].startswith(text)])
+
+        return l
+        # if(state < len(l)):
+        #    return l[state]
+        # return None
+
+    def complete_path(self, text, state):
+        line_beginning = readline.get_line_buffer()[:readline.get_begidx()]
+        if "(" not in line_beginning:
+            return []
+
+        """ Expand file paths for several functions. """
+        candidates = [i for i in KEYKIT_FILE_RELEATED_FUNCTIONS
+                      if i[0] in line_beginning]
+        if len(candidates) == 0:
+            return []
+
+        for candidate in candidates:
+            re_split_args = "([^=]*=)?\s*%s\s*\(([^,]+,){%d}" % candidate
+            if re.search(re_split_args, line_beginning) is not None:
+                # Note that text is to short du the default delims setting.
+                text2 = readline.get_line_buffer()
+                text2 = text2[text2.rfind('"')+1:]
+                return self.shell.update_lsdir(text2, 3)
+                break
+
+        return []
+
 
 def warn(s):
     print(ColorWarn+s+ColorReset)
-
-# Setup tab completion
-
-
-def complete_simple(text, state):
-    """Re-uses the lists the vim syntax file."""
-    l = [i for i in KEYKIT_FUNCTIONS if i.startswith(text)]
-    l.extend([i for i in KEYKIT_STATEMENTS if i.startswith(text)])
-    l.extend([i for i in PYCONSOLE_CONSTANTS if i.startswith(text)])
-    if(state < len(l)):
-        return l[state]
-    return None
-
-
-def complete_advanced(text, state):
-    """Uses the output of the parser keykit_gen_library.py."""
-    l = [i["name"] for i in KEYKIT_LIB_FUNCTIONS
-         if i["name"].startswith(text)]
-    l.extend([i["name"] for i in KEYKIT_LIB_CLASSES
-              if i["name"].startswith(text)])
-    l.extend([i["name"] for i in KEYKIT_LIB_OTHER
-              if i["name"].startswith(text)])
-    if(state < len(l)):
-        return l[state]
-    return None
 
 try:
     lib_dict
 except NameError:
     lib_dict = dict()
-
-readline.parse_and_bind('tab: complete')
-readline.set_completer(complete_advanced)
 
 KEYKIT_LIB_FUNCTIONS = []
 KEYKIT_LIB_CLASSES = []
@@ -418,13 +529,13 @@ KEYKIT_LIB_OTHER = []
 
 
 def load_keykit_library():
-    """Loads the structure generated by keykit_gen_library.ph"""
+    """Loads the structure generated by keykit_gen_library.py."""
     import keykit_bltin
     lib_dict.update(keykit_bltin.lib_dict)
     import keykit_library
     lib_dict.update(keykit_library.lib_dict)
 
-    # create ist of function names
+    # create list of function names
     for folder in lib_dict.values():
         # KEYKIT_LIB_FUNCTIONS.extend(folder)
         for doc in folder:
@@ -455,7 +566,7 @@ def keykit_library_help(el):
 
 
 def keykit_library_abc(elems):
-    """Split elments into separate chunks for first character"""
+    """Split elements into separate chunks for first character."""
 
     # Combine 'x' and 'X' fields
     elems.sort(key=lambda el: el.lower())
@@ -478,8 +589,10 @@ def keykit_library_abc(elems):
             s += "%15s " % (el,)
     return s
 
-if __name__ == '__main__':
+
+def start():
     shell = KeykitShell()
+    completer = Completer(shell=shell)
 
     # Load history
     try:
@@ -490,6 +603,8 @@ if __name__ == '__main__':
     # Load help system in background thread
     doc_thread = Thread(target=load_keykit_library)
     doc_thread.start()
+
+    # Start Input loop
     try:
         shell.cmdloop()
     except KeyboardInterrupt:
@@ -507,3 +622,6 @@ if __name__ == '__main__':
         readline.write_history_file(".pyconsole.history")
     except IOError:
         warn("Can't write history file")
+
+if __name__ == '__main__':
+    start()

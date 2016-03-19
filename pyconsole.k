@@ -29,6 +29,11 @@ Pyconsole_logfile = "pyconsole.log"
 # Enable workaround, see pyconsole_win.k
 Pyconsole_windows_fix = 0
 
+# Maximal string length in osc send message. Longer messages
+# will be splitted. The maximal udp package length depends
+# of your network settings. Too long messages could be cutted.
+Pyconsole_max_payload_len = 512
+
 
 # Call this function to use pyconsole
 function pyconsole(port, hostname){
@@ -247,6 +252,19 @@ class osc_console {
 		else if( d[0] == "/keykit/pyconsole/verbose" ){
 			Pyconsole_verbose = integer(d[1])
 		}
+		else if( d[0] == "/keykit/pyconsole/lsdir" ){
+			if( Pyconsole_verbose > 0 ){
+				Local_print("lsdir path: ",string(d[1]))
+			}
+			files = lsdir(string(d[1]))
+			# Long strings could be split into multiple packages
+			# ^,$ are used to mark begin and end of string
+			array_string = sprintf("^%s$",string(files))
+			if( Pyconsole_verbose > 0 ){
+				Local_print("lsdir result: ",array_string)
+			}
+			task $.send(array_string, "/keykit/pyconsole/lsdir")
+		}
 	}
 
 	method osctask() {
@@ -407,10 +425,10 @@ class osc_console {
 	method send(s, path){
 		if( nargs() < 2 ) path="/keykit/pyconsole/out"
 
-		while( sizeof(s) > 1024 ){
+		while( sizeof(s) > Pyconsole_max_payload_len ){
 			# Split text to omit oversized tcp packages?!
-			sBegin = substr(s, 1, 1024)
-			s = substr(s, 1+1024, sizeof(s)-1024)
+			sBegin = substr(s, 1, Pyconsole_max_payload_len)
+			s = substr(s, 1+Pyconsole_max_payload_len, sizeof(s)-Pyconsole_max_payload_len)
 			$.send(sBegin, path)
 		}
 
