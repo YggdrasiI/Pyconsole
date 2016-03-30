@@ -2,7 +2,7 @@
 @echo off
 
 rem Variables begin with X to not mess up 
-rem a environment variable used bey Keykit itself.
+rem a environment variable used by Keykit itself.
 SET XKEYROOT=I:\Olaf\keykit\key77b_win
 SET XKEYKIT=key.exe
 SET XLOWKEY=lowkey.exe
