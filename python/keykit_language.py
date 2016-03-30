@@ -205,4 +205,6 @@ KEYKIT_FILE_RELEATED_FUNCTIONS = [
     ("typoh", 0),
     ("writemf", 1),
     ("writephr", 1),
+    ("chdir", 0),
+    ("lsdir", 0),
 ]

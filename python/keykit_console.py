@@ -264,15 +264,22 @@ class KeykitShell(cmd.Cmd):
              for el in lElems]
         if(len(l) == 0):
             warn("No Keykit function/class/etc found for %s" % (kname,))
-            return
         elif(len(l) > 20):
             print(keykit_library_abc(l))
-        elif(len(l) > 1):
+        elif(len(l) > 2):
             print(" ".join(l))
-            return
+        elif(len(l) > 1):
+            # The used regex ignores the case. Check if the matches
+            # only differs by the case and print out help for both matches.
+            # Assumption: Three keywords with the same lowercase never exists.
+            if( lElems[0]["name"].lower()
+                    == lElems[1]["name"].lower() ):
+                print(keykit_library_help(lElems[0]))
+                print(keykit_library_help(lElems[1]))
+            else:
+                print(" ".join(l))
         else:
             print(keykit_library_help(lElems[0]))
-            return
 
     def close(self):
         if(self.client is not None):
