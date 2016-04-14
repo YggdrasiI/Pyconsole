@@ -76,6 +76,7 @@ class KeykitShell(cmd.Cmd):
         cmd.Cmd.__init__(self, args, kwargs)
         self.client = None
         self.server = None
+        self.run = False
         # Start client and server with default values
         self.init()
 
@@ -103,6 +104,12 @@ class KeykitShell(cmd.Cmd):
                                         list(self.local_server_adr)))
         except OSCClientError:
             warn("Sending of /target message failed. Pyconsole.k offline?")
+
+        self.run = True
+
+    def is_run(self):
+        """ True between self.init() and self.close() calls. """
+        return self.run
 
     def emptyline(self):
         """Do nothing on empty input line"""
@@ -281,7 +288,13 @@ class KeykitShell(cmd.Cmd):
         else:
             print(keykit_library_help(lElems[0]))
 
+    def do_EOF(self, line):
+        warn("Ctrl+D pressed. Quitting keykit shell.")
+        self.close()
+        return True
+
     def close(self):
+        self.run = False
         if(self.client is not None):
             self.client.close()
         if self.server is not None:
@@ -322,8 +335,15 @@ class KeykitShell(cmd.Cmd):
                     if i[0].startswith(basename)]
             # Omit adding of closing quotes, see
             # https://github.com/ipython/ipython/issues/1172
-            if len(ret) == 1:
+            if len(ret) == 1 and ret[0][-1] == os.path.sep:
                 ret.append(ret[0]+" ")
+
+            # Close path of files if only one element is available
+            # Readline completes with " on its own, too. (This depends 
+            # on the list of delimters). The last expression should prevent double adding of ".
+            if(len(ret) == 1 and ret[0][-1] != os.path.sep and
+                    os.path.dirname(text) != ''):
+                ret[0] += '"'
             return ret
 
         return []
@@ -458,6 +478,10 @@ class Completer:
         if bBind:
             readline.parse_and_bind('tab: complete')
             readline.set_completer(self.complete)
+            # Use default limiters but remove '-'
+            # `~!@#$%^&*()-=+[{]}\|;:'",<>/?
+            self.default_delims = readline.get_completer_delims()
+            readline.set_completer_delims(self.default_delims.replace("-", ""))
 
     def complete(self, prefix, index):
         if prefix != self.prefix:
@@ -500,7 +524,12 @@ class Completer:
         # return None
 
     def complete_path(self, text, state):
+        """ Search input line for several function names and expand
+        arguments which are knows as file/path arguments.
+        The search for the function name does not respect nesting, etc.
+        """
         line_beginning = readline.get_line_buffer()[:readline.get_begidx()]
+        line_beginning = line_beginning[max(0,line_beginning.rfind(";")):]
         if "(" not in line_beginning:
             return []
 
@@ -513,7 +542,8 @@ class Completer:
         for candidate in candidates:
             re_split_args = "([^=]*=)?\s*%s\s*\(([^,]+,){%d}" % candidate
             if re.search(re_split_args, line_beginning) is not None:
-                # Note that text is to short du the default delims setting.
+                # We can not use 'text' due the default delims setting.
+                # It would be too short.
                 text2 = readline.get_line_buffer()
                 text2 = text2[text2.rfind('"')+1:]
                 return self.shell.update_lsdir(text2, 3)
@@ -612,16 +642,16 @@ def start():
     doc_thread.start()
 
     # Start Input loop
-    try:
-        shell.cmdloop()
-    except KeyboardInterrupt:
-        warn("Ctrl+C pressed. Quitting keykit shell.")
-        shell.close()
-    except TypeError:
-        warn("Type error. Quitting keykit shell.")
-        shell.close()
-    finally:
-        shell.close()
+    while shell.is_run():
+        try:
+            shell.cmdloop()
+        except KeyboardInterrupt:
+            # Just restart cmd loop. Qutting was shifted to Ctrl+D...
+            shell.intro = ""
+            warn("^C")
+        except TypeError:
+            warn("Type error. Quitting keykit shell.")
+            shell.close()
 
     # Write history
     try:
