@@ -41,6 +41,8 @@ function pyconsole(port, hostname){
 	#include contrib/Pyconsole/base_functions.k
 	if( nargs() < 2 ) hostname = PYCONSOLE_HOSTNAME
 	if( nargs() < 1 ) port = PYCONSOLE_PORT 
+	
+	#enable_input("in 1")
 	enable_output()
 
 	pycon = new osc_console(port, hostname)
