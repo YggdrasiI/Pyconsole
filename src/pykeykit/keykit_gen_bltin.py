@@ -1,4 +1,6 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 """
 Search library files of keykit for #name, #usage and #desc lines to
 generate help strings for this console.

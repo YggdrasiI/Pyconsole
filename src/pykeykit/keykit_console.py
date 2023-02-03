@@ -1,24 +1,30 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 """ Osc client for Keykit """
 import cmd
 import sys
 import re
 import os.path
+import argparse
 
 if sys.platform[0:3] == "win32":
     import pyreadline as readline
 else:
     import readline  # For history, do not remove
 
-from OSC import OSCClient, OSCMessage, OSCClientError
 from socket import gethostname
 from time import sleep
-
-# For reply's
-from OSC import OSCServer
 from threading import Thread
 
+# For sending commands
+from pythonosc import udp_client, osc_message
+# For reply's
+from pythonosc import osc_server
+from pythonosc.dispatcher import Dispatcher
+
 # Constants
-from keykit_language import *
+from .keykit_language import *
 
 ################################################
 # Attention, the console is not password protected
@@ -40,11 +46,19 @@ MY_HOSTNAME = "127.0.0.1"  # or
 # Note that colouring does not work in Git bash (Win), but Cmd.exe.
 USE_COLORAMA = True
 
+# Quiet flag -q/--quiet for reduced output on stdout
+QUIET = False
+
 # Storage file for history
 PYCONSOLE_HIST_FILE = ".pyconsole.history"
 
-MY_PROMPT = ''
-# MY_PROMPT = 'key> '
+# Indent input lines or output lines
+if False:
+    MY_PROMPT = ""
+    OUTPUT_INDENT = "\t"
+else:
+    MY_PROMPT = "key> "
+    OUTPUT_INDENT = ""
 
 ################################################
 
@@ -59,6 +73,18 @@ else:
     ColorWarn = ""
     ColorReset = ""
 
+# Wrap printing function to respect quiet flag
+__print = print
+def print(*largs, **kwargs):
+    if QUIET and not kwargs.get("force"):
+        return
+
+    kwargs.pop("force", None)
+
+    __print(*largs, **kwargs)
+
+
+
 
 class KeykitShell(cmd.Cmd):
     intro = """
@@ -70,9 +96,13 @@ class KeykitShell(cmd.Cmd):
     remote_server_adr = (PYCONSOLE_HOSTNAME, PYCONSOLE_PORT)
     local_server_adr = (MY_HOSTNAME, PYCONSOLE_PORT + 1)
 
-    prompt = ''
+    prompt = ""
+    prompt = MY_PROMPT
 
     def __init__(self, *args, **kwargs):
+        if QUIET:
+            self.intro = ""
+
         cmd.Cmd.__init__(self, args, kwargs)
         self.client = None
         self.server = None
@@ -81,31 +111,28 @@ class KeykitShell(cmd.Cmd):
         self.init()
 
     def init(self):
-        # Client
-        if(self.client is not None):
-            self.client.close()
-        self.client = OSCClient()
-        try:
-            self.client.connect(self.remote_server_adr)
-        except ValueError:
-            warn("Connectiong failed. Invalid port?")
+        # Close previous client/server
+        self.close()
 
-        # Server
-        if self.server is not None:
-            self.server.stop()
-            self.server_thread.join()
+        self.client = udp_client.SimpleUDPClient(*self.remote_server_adr)
         self.server = Server(self.local_server_adr)
-        self.server_thread = Thread(target=self.server.start)
-        self.server_thread.start()
 
         # Inform keykit programm to use this as target
         try:
-            self.client.send(OSCMessage("/keykit/pyconsole/target",
-                                        list(self.local_server_adr)))
-        except OSCClientError:
-            warn("Sending of /target message failed. Pyconsole.k offline?")
+            self.client.send_message(
+                "/keykit/pyconsole/target",
+                list(self.local_server_adr))
+        except IOError as e:
+            warn("Sending of /target message failed. Pyconsole.k offline?\n"
+                 "Error: {}".format(e))
 
         self.run = True
+
+        # Handle replies in other thread, but not block here
+        self.server_thread = Thread(target=self.server.start)
+        self.server_thread.start()
+
+
 
     def is_run(self):
         """ True between self.init() and self.close() calls. """
@@ -122,10 +149,10 @@ class KeykitShell(cmd.Cmd):
         Default PORT: %i
         Default HOSTNAME: %s
         """
-        words = arg.split(' ')
-        if len(words) > 1:
+        words = arg.split(" ")
+        if len(words) > 1 and words[1]:
             self.remote_server_adr = (str(words[1]), int(words[0]))
-        elif len(words) > 0:
+        elif len(words) > 0 and words[0]:
             self.remote_server_adr = (self.remote_server_adr[0], int(words[0]))
 
         self.local_server_adr = (
@@ -140,8 +167,7 @@ class KeykitShell(cmd.Cmd):
         if arg == "":
             arg = "1"
         try:
-            self.client.send(
-                OSCMessage("/keykit/pyconsole/verbose", [int(arg)]))
+            self.client.send_message("/keykit/pyconsole/verbose", [int(arg)])
         except OSCClientError:
             warn("Sending failed")
 
@@ -150,8 +176,8 @@ class KeykitShell(cmd.Cmd):
 
         It mutes the output of keykit, too.
         """
-        warn('Quitting keykit shell.')
-        # self.send("stop()")
+        warn("Quitting keykit shell.")
+        # self.send_message("stop()")
         self.send("alloff()")
         self.close()
         return True
@@ -197,7 +223,8 @@ class KeykitShell(cmd.Cmd):
         """Send input as keykit command (OSC message)"""
         self.send(line)
         # Restore prompt
-        sys.stdout.write("%s" % (MY_PROMPT))
+        ## TODO
+        ## sys.stdout.write("%s" % (MY_PROMPT))
 
     def do_help(self, args):
         """%s"""
@@ -289,23 +316,33 @@ class KeykitShell(cmd.Cmd):
             print(keykit_library_help(lElems[0]))
 
     def do_EOF(self, line):
-        warn("Ctrl+D pressed. Quitting keykit shell.")
+        if not QUIET:
+            warn("Ctrl+D pressed. Quitting keykit shell.")
         self.close()
         return True
 
     def close(self):
         self.run = False
+
+        # Clear prompt
+        sys.stdout.write("\r\033[K")
+        # sys.stdout.flush()
+
         if(self.client is not None):
-            self.client.close()
+            self.client._sock.close()
+            self.client = None
+
         if self.server is not None:
-            self.server.stop()
-            # self.server_thread.join()
+            self.server.server.server_close()
+            # self.server.server.socket.close()  # No speedup
+            self.server_thread.join()
+            self.server = None
 
     def send(self, s):
         try:
-            self.client.send(OSCMessage("/keykit/pyconsole/in", [s]))
-        except OSCClientError:
-            warn("Sending of '%s' failed" % (s,))
+            self.client.send_message("/keykit/pyconsole/in", [s])
+        except IOError as e:
+            warn("Sending of '{}' failed. Error: {}".format(s, e))
 
     def update_lsdir(self, text, timeout):
         #import pdb; pdb.set_trace()
@@ -316,9 +353,9 @@ class KeykitShell(cmd.Cmd):
             dirname = "."
         self.server.keykit_lsdir = None
         try:
-            self.client.send(OSCMessage("/keykit/pyconsole/lsdir", [dirname]))
-        except OSCClientError:
-            warn("Sending of '%s' failed" % (s,))
+            self.client.send_message("/keykit/pyconsole/lsdir", [dirname])
+        except IOError as e:
+            warn("Sending of '{}' failed. Error: {}".format(s, e))
 
         while timeout > 0 and self.server.keykit_lsdir is None:
             timeout -= 0.1
@@ -359,26 +396,84 @@ class Server():
     """
 
     def __init__(self, server_adr):
-        self.server = OSCServer(server_adr)
-        self.server.socket.settimeout(3)
+
         self.run = True
         self.timed_out = False
 
-        # funny python's way to add a method to an instance of a class
-        # import types
-        # self.server.handle_timeout = types.MethodType(
-        #   self.handle_timeout, self.server)
-        # or
-        self.server.handle_timeout = self.handle_timeout
+        # Callbacks
+        def quit_callback(adr, path, tags, args, source):
+            self.run = False
+
+        def print_callback(path, args, textColor=ColorOut):
+            # Add Tab at every output line
+            out = args.replace("\n", "\n"+OUTPUT_INDENT)
+
+            # Delete current input (1), insert output (2),
+            # and add input again (3).
+            current_input = readline.get_line_buffer()
+
+            # (1) \r     : Carriage return,
+            #     \033[K : Delete everything after the cursor.
+            sys.stdout.write("\r\033[K")
+
+            # (2) + (3)
+            sys.stdout.write(
+                "%s%s%s%s\n%s%s" %
+                (OUTPUT_INDENT,
+                 textColor,
+                 out,
+                 ColorReset,
+                 MY_PROMPT if not QUIET else "",
+                 current_input))
+            sys.stdout.flush()
+
+        def err_callback(path, args):
+            """ Same as print_callback but mark output as error. """
+            print_callback(path, args, ColorWarn)
+
+        def dir_callback(path, args):
+            """ Store current working dir for tab completion.
+                This is mainly releated to chdir() and lsdir().
+            """
+            lsdir_string_part = args
+            if lsdir_string_part[0] == "^":
+                self.keykit_lsdir_string = lsdir_string_part
+            else:
+                self.keykit_lsdir_string += lsdir_string_part
+
+            if self.keykit_lsdir_string[-1] == "$":
+                try:
+                    lsdir = []
+                    # Convert string into list of files. Second argument flags
+                    # directories.
+                    # Example string:  ^["foldername"=1,"filename"=0]$
+                    re_entries = '".+?"=[01][,\]]'
+                    entries = re.finditer(re_entries, self.keykit_lsdir_string)
+                    for entry in entries:
+                        sname = entry.group()[1:-4]
+                        bFolder = entry.group()[-2] == "1"
+                        lsdir.append((sname, bFolder))
+
+                    self.keykit_lsdir = lsdir
+                except:
+                    sys.stderr.write("(dir_callback) Unable to fetch folder content.")
+                    self.keykit_lsdir = []
 
         # Handler
-        self.server.addMsgHandler("/quit", self.quit_callback)
-        self.server.addMsgHandler("/keykit/pyconsole/out", self.print_callback)
-        self.server.addMsgHandler("/keykit/pyconsole/err", self.err_callback)
-        self.server.addMsgHandler(
-            "/keykit/pyconsole/start",
-            self.print_callback)
-        self.server.addMsgHandler("/keykit/pyconsole/lsdir", self.dir_callback)
+        self.dispatcher = Dispatcher()
+        self.dispatcher.map("/quit", quit_callback)
+        self.dispatcher.map("/keykit/pyconsole/out", print_callback)
+        self.dispatcher.map("/keykit/pyconsole/err", err_callback)
+        self.dispatcher.map("/keykit/pyconsole/start", print_callback)
+        self.dispatcher.map("/keykit/pyconsole/lsdir", dir_callback)
+
+        #self.server = osc_server.ThreadingOSCUDPServer(
+        self.server = osc_server.BlockingOSCUDPServer(
+            server_adr, self.dispatcher)
+
+        # Change internal socket variable of OSC server
+        self.server.socket.settimeout(3)
+        self.server.handle_timeout = self.handle_timeout
 
     def handle_timeout(self, server=None):
         self.timed_out = True
@@ -388,83 +483,41 @@ class Server():
         self.timed_out = False
         # handle all pending requests then return
         while not self.timed_out and self.run:
-            self.server.handle_request()
-            # Line reached after each socket read
-            sleep(.05)
+            try:
+                self.server.handle_request()
+                # Line reached after each socket read
+                sleep(.05)
+            except ValueError as e:  # bad file descriptior error for 'bye' cmd
+                self.run = False
+                pass
 
     def start(self):
+        '''
+        # Wait with prompt printing until client wrote intro message
+        sleep(0.9)
+
         # print("Wait on client input...")
         sys.stdout.write("%s" % (MY_PROMPT))
         sys.stdout.flush()
+        '''
         while self.run:
             self.each_frame()
             # Line reached after each socket timeout
             sleep(1)
 
     def stop(self):
+        '''
         self.run = False
         # Invoke shutdown. Socket still wait on timeout...
         try:
             import socket
-            self.server.socket.shutdown(socket.SHUT_RDWR)
+            self.server.server.socket.shutdown(socket.SHUT_RDWR)
         except socket.error:
             pass
+        '''
 
         self.server.close()
 
-    # Callbacks
-    def quit_callback(self, path, tags, args, source):
-        self.run = False
-
-    def print_callback(self, path, tags, args, source, textColor=ColorOut):
-        current_input = readline.get_line_buffer()
-
-        # Add Tab at every input line
-        out = args[0].replace("\n", "\n\t")
-
-        # Delete current input, insert output and add input again.
-        # \r : Carriage return, \033[K : Delete everything after the cursor.
-        sys.stdout.write("\r\033[K")
-        sys.stdout.write(
-            "\t%s%s%s\n%s%s" %
-            (textColor,
-             out,
-             ColorReset,
-             MY_PROMPT,
-             current_input))
-        sys.stdout.flush()
-
-    def err_callback(self, path, tags, args, source):
-        """ Same as print_callback but mark output as error. """
-        self.print_callback(path, tags, args, source, ColorWarn)
-
-    def dir_callback(self, path, tags, args, source):
-        """ Store current working dir for tab completion.
-            This is mainly releated to chdir() and lsdir().
-        """
-        lsdir_string_part = args[0]
-        if lsdir_string_part[0] == "^":
-            self.keykit_lsdir_string = lsdir_string_part
-        else:
-            self.keykit_lsdir_string += lsdir_string_part
-
-        if self.keykit_lsdir_string[-1] == "$":
-            try:
-                lsdir = []
-                # Convert string into list of files. Second argument flags
-                # directories.
-                # Example string:  ^["foldername"=1,"filename"=0]$
-                re_entries = '".+?"=[01][,\]]'
-                entries = re.finditer(re_entries, self.keykit_lsdir_string)
-                for entry in entries:
-                    sname = entry.group()[1:-4]
-                    bFolder = entry.group()[-2] == "1"
-                    lsdir.append((sname, bFolder))
-
-                self.keykit_lsdir = lsdir
-            except:
-                sys.stderr.write("(dir_callback) Unable to fetch folder content.")
-                self.keykit_lsdir = []
 
 
 # Setup tab completion
@@ -476,7 +529,7 @@ class Completer:
         self.completer = \
             self.complete_advanced if completer is None else completer
         if bBind:
-            readline.parse_and_bind('tab: complete')
+            readline.parse_and_bind("tab: complete")
             readline.set_completer(self.complete)
             # Use default limiters but remove '-'
             # `~!@#$%^&*()-=+[{]}\|;:'",<>/?
@@ -567,10 +620,10 @@ KEYKIT_LIB_OTHER = []
 
 def load_keykit_library():
     """Loads the structure generated by keykit_gen_library.py."""
-    import keykit_bltin
-    lib_dict.update(keykit_bltin.lib_dict)
-    import keykit_library
-    lib_dict.update(keykit_library.lib_dict)
+    from .keykit_bltin import lib_dict as lib_dict_update
+    lib_dict.update(lib_dict_update)
+    from .keykit_library import lib_dict as lib_dict_update
+    lib_dict.update(lib_dict_update)
 
     # create list of function names
     for folder in lib_dict.values():
@@ -594,7 +647,7 @@ def keykit_library_help(el):
         else:
             source = "(%s)" % (el["filename"],)
 
-    desc = el["desc"] if el["desc"] is not "" else "-"
+    desc = el["desc"] if el["desc"] != "" else "-"
     return out % (ColorOut, el["name"], ColorReset,
                   (60-len(el["name"])),
                   source,
@@ -628,6 +681,23 @@ def keykit_library_abc(elems):
 
 
 def start():
+    global QUIET
+
+    parser = argparse.ArgumentParser(
+        description='Commandline interface to Keykit with pyconsole support.')
+    parser.add_argument('-q', '--quiet', action='store_true', 
+                        help='Print returned text from keykit only.')
+
+    args = parser.parse_args()
+
+    if args.quiet:
+        QUIET = True
+
+    # Check if input is given by pipe
+    if not os.isatty(sys.stdin.fileno()):
+        QUIET = True
+
+
     shell = KeykitShell()
     completer = Completer(shell=shell)
 
@@ -660,5 +730,6 @@ def start():
     except IOError:
         warn("Can't write history file")
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     start()

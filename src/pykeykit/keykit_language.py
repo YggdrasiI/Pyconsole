@@ -1,3 +1,6 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 # Constans, function names, etc for auto completion tasks
 PYCONSOLE_CONSTANTS = ["bye", "connect", "help", "loop", "test", "verbose"]
 KEYKIT_FUNCTIONS = [
@@ -208,3 +211,5 @@ KEYKIT_FILE_RELEATED_FUNCTIONS = [
     ("chdir", 0),
     ("lsdir", 0),
 ]
+
+__all__ = ["PYCONSOLE_CONSTANTS", "KEYKIT_FUNCTIONS", "KEYKIT_STATEMENTS", "KEYKIT_FILE_RELEATED_FUNCTIONS"]

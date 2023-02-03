@@ -32,7 +32,17 @@ Pyconsole_windows_fix = 0
 # Maximal string length in osc send message. Longer messages
 # will be splitted. The maximal udp package length depends
 # of your network settings. Too long messages could be cutted.
-Pyconsole_max_payload_len = 512
+
+#Pyconsole_max_payload_len = 512
+# 512 is to big for pythonosc...
+# Error in dispatcher.py, line 183
+#    packet = osc_packet.OscPacket(data)
+#
+# Could not parse packet ('Found incorrect datagram, ignoring it',
+# ParseError('Could not parse datagram index out of range'))
+
+
+Pyconsole_max_payload_len = 300
 
 
 # Call this function to use pyconsole
@@ -427,10 +437,12 @@ class osc_console {
 	method send(s, path){
 		if( nargs() < 2 ) path="/keykit/pyconsole/out"
 
-		while( sizeof(s) > Pyconsole_max_payload_len ){
+		s_len = sizeof(s)
+		while( s_len > Pyconsole_max_payload_len ){
 			# Split text to omit oversized tcp packages?!
 			sBegin = substr(s, 1, Pyconsole_max_payload_len)
-			s = substr(s, 1+Pyconsole_max_payload_len, sizeof(s)-Pyconsole_max_payload_len)
+			s = substr(s, 1+Pyconsole_max_payload_len, s_len-Pyconsole_max_payload_len)
+			s_len -= Pyconsole_max_payload_len
 			$.send(sBegin, path)
 		}
 
